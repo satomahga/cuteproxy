@@ -1,0 +1,13 @@
+diff --git a/node_modules/http-proxy/lib/http-proxy/passes/web-incoming.js b/node_modules/http-proxy/lib/http-proxy/passes/web-incoming.js
+index 7ae7355..c825c27 100644
+--- a/node_modules/http-proxy/lib/http-proxy/passes/web-incoming.js
++++ b/node_modules/http-proxy/lib/http-proxy/passes/web-incoming.js
+@@ -167,7 +167,7 @@ module.exports = {
+       }
+     }
+ 
+-    (options.buffer || req).pipe(proxyReq);
++    (options.buffer(req) || req).pipe(proxyReq);
+ 
+     proxyReq.on('response', function(proxyRes) {
+       if(server) { server.emit('proxyRes', proxyRes, req, res); }

@@ -1,0 +1,160 @@
+<%- include("partials/shared_header", { title: "Proof of Work Verification Settings - OAI Reverse Proxy Admin" }) %>
+<style>
+  details {
+    margin-top: 1em;
+  }
+  details summary {
+    font-weight: bold;
+    cursor: pointer;
+  }
+  details p {
+    margin-left: 1em;
+  }
+
+  #token-manage {
+    display: flex;
+    width: 100%;
+  }
+  #token-manage button {
+    flex-grow: 1;
+    margin: 0 0.5em;
+  }
+</style>
+
+<h1>Abuse Mitigation Settings</h1>
+<div>
+  <h2>Proof-of-Work Verification</h2>
+  <p>
+    The Proof-of-Work difficulty level is used to determine how much work a client must perform to earn a temporary user
+    token. Higher difficulty levels require more work, which can help mitigate abuse by making it more expensive for
+    attackers to generate tokens. However, higher difficulty levels can also make it more difficult for legitimate users
+    to generate tokens. Refer to documentation for guidance.
+  </p>
+  <%if (captchaMode === "none") { %>
+  <p>
+    <strong>PoW verification is not enabled. Set <code>CAPTCHA_MODE=proof_of_work</code> to enable.</strong>
+  </p>
+  <% } else { %>
+  <h3>Difficulty Level</h3>
+  <div>
+    <label for="difficulty">Difficulty Level:</label>
+    <select name="difficulty" id="difficulty" onchange="difficultyChanged(event)">
+      <option value="low">Low</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="extreme">Extreme</option>
+      <option value="custom">Custom</option>
+    </select>
+    <div id="custom-difficulty-container" style="display: none">
+      <label for="customDifficulty">Hashes required (average):</label>
+      <input type="number" id="customDifficulty" value="0" min="1" max="1000000000" />
+    </div>
+    <button onclick='doAction("setDifficulty")'>Update Difficulty</button>
+  </div>
+  <div><span id="currentDifficulty">Current Difficulty: <%= difficulty %></span></div>
+  <% } %>
+  <form id="maintenanceForm" action="/admin/manage/maintenance" method="post">
+    <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input id="hiddenAction" type="hidden" name="action" value="" />
+    <input id="hiddenDifficulty" type="hidden" name="pow-difficulty" value="" />
+  </form>
+  <h3>Manage Temporary User Tokens</h3>
+  <div id="token-manage">
+    <p><button onclick='doAction("expireTempTokens")'>🕒 Expire All Temp Tokens</button></p>
+    <p><button onclick='doAction("cleanTempTokens")'>🧹 Delete Expired Temp Tokens</button></p>
+    <p><button onclick='doAction("generateTempIpReport")'>📊 Generate Temp Token IP Report</button></p>
+  </div>
+</div>
+<div>
+  <h2>IP Whitelists and Blacklists</h2>
+  <p>
+    You can specify IP ranges to whitelist or blacklist from accessing the proxy. Entries can be specified as single
+    addresses or
+    <a href="https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation">CIDR notation</a>. IPv6 is
+    supported but not recommended for use with the current version of the proxy.
+  </p>
+  <p>
+    <strong>Note:</strong> Changes here are not persisted across server restarts. If you want to make changes permanent,
+    you can copy the values to your deployment configuration.
+  </p>
+  <% for (let i = 0; i < whitelists.length; i++) { %>
+  <%- include("partials/admin-cidr-widget", { list: whitelists[i] }) %>
+  <% } %>
+  <% for (let i = 0; i < blacklists.length; i++) { %>
+  <%- include("partials/admin-cidr-widget", { list: blacklists[i] }) %>
+  <% } %>
+  <form action="/admin/manage/cidr" method="post" id="cidrForm">
+    <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input type="hidden" name="action" value="add" />
+    <input type="hidden" name="name" value="" />
+    <input type="hidden" name="mode" value="" />
+    <input type="hidden" name="mask" value="" />
+  </form>
+  <details>
+    <summary>Copy environment variables</summary>
+    <p>
+      If you have made changes with the UI, you can copy the values below to your deployment configuration to persist
+      them across server restarts.
+    </p>
+    <pre>
+    <% for (let i = 0; i < whitelists.length; i++) { %><%= whitelists[i].name %>=<%= whitelists[i].ranges.join(",") %><% } %>
+    <% for (let i = 0; i < blacklists.length; i++) { %><%= blacklists[i].name %>=<%= blacklists[i].ranges.join(",") %><% } %>
+    </pre>
+  </details>
+</div>
+
+<script>
+  function difficultyChanged(event) {
+    const value = event.target.value;
+    if (value === "custom") {
+      document.getElementById("custom-difficulty-container").style.display = "block";
+    } else {
+      document.getElementById("custom-difficulty-container").style.display = "none";
+    }
+  }
+
+  function doAction(action) {
+    document.getElementById("hiddenAction").value = action;
+    if (action === "setDifficulty") {
+      const selected = document.getElementById("difficulty").value;
+      const hiddenDifficulty = document.getElementById("hiddenDifficulty");
+      if (selected === "custom") {
+        hiddenDifficulty.value = document.getElementById("customDifficulty").value;
+      } else {
+        hiddenDifficulty.value = selected;
+      }
+    }
+    document.getElementById("maintenanceForm").submit();
+  }
+
+  function onAddCidr(event) {
+    const list = event.target.dataset;
+    const newMask = prompt("Enter the IP or CIDR range to add to the list:");
+    if (!newMask) {
+      return;
+    }
+
+    const form = document.getElementById("cidrForm");
+    form["action"].value = "add";
+    form["name"].value = list.name;
+    form["mode"].value = list.mode;
+    form["mask"].value = newMask;
+    form.submit();
+  }
+
+  function onRemoveCidr(event) {
+    const list = event.target.dataset;
+    const removeMask = event.target.dataset.mask;
+    if (!removeMask) {
+      return;
+    }
+
+    const form = document.getElementById("cidrForm");
+    form["action"].value = "remove";
+    form["name"].value = list.name;
+    form["mode"].value = list.mode;
+    form["mask"].value = removeMask;
+    form.submit();
+  }
+</script>
+<%- include("partials/admin-footer") %>

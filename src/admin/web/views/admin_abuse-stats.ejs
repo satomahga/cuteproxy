@@ -1,0 +1,115 @@
+<%- include("partials/shared_header", { title: "Abuse Statistics" }) %>
+<h1>Abuse Statistics</h1>
+<div>
+  <p><strong>Active Tokens:</strong> <%= activeTokens %></p>
+  <p><strong>Blocked Tokens:</strong> <%= blockedTokens %></p>
+  <p><strong>Suspended Tokens:</strong> <%= suspendedTokens %></p>
+</div>
+
+<h3>Blocked Tokens by Reason</h3>
+<table border="1" cellspacing="0" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Reason</th>
+      <th>Count</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% const blockedEntries = Object.entries(blockedByReason || {}).sort((a,b) => b[1]-a[1]); %>
+    <% if (blockedEntries.length === 0) { %>
+      <tr><td colspan="2">No blocked tokens.</td></tr>
+    <% } else { %>
+      <% blockedEntries.forEach(([reason, count]) => { %>
+        <tr>
+          <td><%= reason %></td>
+          <td><%= count %></td>
+        </tr>
+      <% }) %>
+    <% } %>
+  </tbody>
+</table>
+
+<h3>Suspended Tokens by Reason</h3>
+<table border="1" cellspacing="0" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Reason</th>
+      <th>Count</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% const suspendedEntries = Object.entries(suspendedByReason || {}).sort((a,b) => b[1]-a[1]); %>
+    <% if (suspendedEntries.length === 0) { %>
+      <tr><td colspan="2">No suspended tokens.</td></tr>
+    <% } else { %>
+      <% suspendedEntries.forEach(([reason, count]) => { %>
+        <tr>
+          <td><%= reason %></td>
+          <td><%= count %></td>
+        </tr>
+      <% }) %>
+    <% } %>
+  </tbody>
+</table>
+
+<p style="margin-top: 1em;">
+  <a href="/admin/abuse-stats" target="_blank" rel="noopener">View JSON API</a>
+</p>
+
+<h3>Banned Tokens</h3>
+<table border="1" cellspacing="0" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Token</th>
+      <th>Nickname</th>
+      <th>Reason</th>
+      <th>When</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% if (!bannedList || bannedList.length === 0) { %>
+      <tr><td colspan="5">No banned tokens.</td></tr>
+    <% } else { %>
+      <% bannedList.forEach((u) => { %>
+        <tr>
+          <td><code>...<%= u.token.slice(-8) %></code></td>
+          <td><%= u.nickname || '' %></td>
+          <td><%= u.reason %></td>
+          <td><%= new Date(u.when).toISOString() %></td>
+          <td><a href="/admin/manage/view-user/<%= u.token %>">Open</a></td>
+        </tr>
+      <% }) %>
+    <% } %>
+  </tbody>
+</table>
+
+<h3>Suspended Tokens</h3>
+<table border="1" cellspacing="0" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Token</th>
+      <th>Nickname</th>
+      <th>Reason</th>
+      <th>Until</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% if (!suspendedList || suspendedList.length === 0) { %>
+      <tr><td colspan="5">No suspended tokens.</td></tr>
+    <% } else { %>
+      <% suspendedList.forEach((u) => { %>
+        <tr>
+          <td><code>...<%= u.token.slice(-8) %></code></td>
+          <td><%= u.nickname || '' %></td>
+          <td><%= u.reason %></td>
+          <td><%= new Date(u.until).toISOString() %></td>
+          <td><a href="/admin/manage/view-user/<%= u.token %>">Open</a></td>
+        </tr>
+      <% }) %>
+    <% } %>
+  </tbody>
+</table>
+
+<%- include("partials/admin-footer") %>

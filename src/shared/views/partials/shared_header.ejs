@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="csrf-token" content="<%= csrfToken %>" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/res/css/reset.css" media="screen" />
+    <link rel="stylesheet" href="/res/css/sakura.css" media="screen" />
+    <link rel="stylesheet" href="/res/css/sakura-dark.css" media="screen and (prefers-color-scheme: dark)" />
+
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 1em;
+        max-width: 800px;
+      }
+
+      details summary {
+        cursor: pointer;
+        font-weight: bold;
+      }
+      details > *:not(summary) {
+        margin: 0.5em;
+      }
+
+      .pagination {
+        list-style-type: none;
+        padding: 0;
+      }
+      .pagination li {
+        display: inline-block;
+      }
+      .pagination li a {
+        display: block;
+        padding: 0.5em 1em;
+        border-bottom: none;
+        text-decoration: none;
+      }
+      .pagination li.active a {
+        background-color: #58739c;
+        color: #fff;
+      }
+
+      table.striped tr:nth-child(even) {
+        background-color: #eaeaea;
+      }
+      table.full-width {
+        width: calc(100vw - 4em);
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: calc(-50vw + 2em);
+        margin-right: calc(-50vw + 2em);
+      }
+
+      th.active {
+        background-color: #e0e6f6;
+      }
+      td.actions {
+        padding: 0;
+        width: 0;
+        text-align: center;
+      }
+      td.actions a {
+        text-decoration: none;
+        background-color: transparent;
+        padding: 0.5em;
+        height: 100%;
+        width: 100%;
+      }
+      td.actions:hover {
+        background-color: #e0e6f6;
+      }
+      tr > td,
+      tr > th {
+          border-right: 1px solid #dedede;
+      }
+
+      @media (max-width: 800px) {
+        body {
+          padding: 0.5em;
+        }
+
+        table.full-width {
+          width: 100%;
+          position: static;
+          left: auto;
+          right: auto;
+          margin-left: 0;
+          margin-right: 0;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        table.striped tr:nth-child(even) {
+          background-color: #333;
+        }
+
+        th.active {
+          background-color: #446;
+        }
+        td.actions:hover {
+          background-color: #446;
+        }
+        tr > td,
+        tr > th {
+          border-right: 1px solid #444;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <%- include("partials/shared_flash", { flashData: flash }) %>

@@ -1,0 +1,13 @@
+{
+  "plugins": ["prettier-plugin-ejs"],
+  "overrides": [
+    {
+      "files": "*.ejs",
+      "options": {
+        "printWidth": 120,
+        "bracketSameLine": true
+      }
+    }
+  ],
+  "trailingComma": "es5"
+}

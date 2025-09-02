@@ -1,0 +1,115 @@
+<p>
+  Next refresh: <time><%- nextQuotaRefresh %></time>
+</p>
+<%
+const quotaTableId = Math.random().toString(36).slice(2);
+ %>
+<div>
+  <label for="quota-family-filter-<%= quotaTableId %>">Filter:</label>
+  <input type="text" id="quota-family-filter-<%= quotaTableId %>" oninput="filterQuotaTable(this, '<%= quotaTableId %>')" />
+</div>
+<table class="striped" id="quota-table-<%= quotaTableId %>">
+  <thead>
+    <tr>
+      <th scope="col">Model Family</th>
+      <th scope="col">Usage</th>
+      <% if (showTokenCosts) { %>
+      <th scope="col">Cost</th>
+      <% } %>
+      <th scope="col">Limit</th>
+      <th scope="col">Remaining</th>
+      <th scope="col" colspan="<%= showRefreshEdit ? 2 : 1 %>">Refresh Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% Object.entries(quota).forEach(([key, configLimit]) => { %>
+    <% 
+      const counts = user.tokenCounts[key] || { input: 0, output: 0 };
+      const limits = user.tokenLimits[key] || { input: 0, output: 0 }; // Default if not set
+      const refresh = user.tokenRefresh[key] || { input: 0, output: 0 };
+      
+      const usageInput = Number(counts.input) || 0;
+      const usageOutput = Number(counts.output) || 0;
+      const usageLegacy = Number(counts.legacy_total) || 0;
+      const displayUsage = usageInput + usageOutput || usageLegacy; // This is for total token display, not directly for cost calculation here
+
+      const limitInput = Number(limits.input) || 0;
+      // If limit was from legacy config.tokenQuota (a number), it's in limits.legacy_total or limits.input
+      const displayLimit = limitInput || Number(limits.legacy_total) || 0;
+      
+      // Determine tokens to use for cost calculation
+      const costInputTokens = (usageInput + usageOutput > 0) ? usageInput : usageLegacy;
+      const costOutputTokens = (usageInput + usageOutput > 0) ? usageOutput : 0; // If using legacy, output is 0 for cost
+      const costDetails = tokenCostDetails(key, costInputTokens, costOutputTokens);
+
+      let remaining = 0;
+      let limitIsSet = false;
+      if (displayLimit > 0) {
+        remaining = displayLimit - (usageInput + usageOutput);
+        limitIsSet = true;
+      } else if (typeof configLimit === 'number' && configLimit > 0) {
+        // Fallback to global config limit if user-specific limit is 0 or not set meaningfully
+        remaining = configLimit - (usageInput + usageOutput);
+        limitIsSet = true;
+      }
+
+
+      const refreshDisplayValue = (Number(refresh.input) || 0) + (Number(refresh.output) || 0) || configLimit || 0;
+    %>
+    <tr>
+      <th scope="row"><%- key %></th>
+      <td>
+        In: <%- prettyTokens(usageInput) %><br/>
+        Out: <%- prettyTokens(usageOutput) %>
+        <% if (usageLegacy && (usageInput + usageOutput === 0)) { %><br/>(Legacy: <%- prettyTokens(usageLegacy) %>)<% } %>
+      </td>
+      <% if (showTokenCosts) { %>
+      <td>
+        In: $<%- costDetails.inputCost.toFixed(Math.max(2, (costDetails.inputCost.toString().split('.')[1] || '').length)) %><br/>
+        Out: $<%- costDetails.outputCost.toFixed(Math.max(2, (costDetails.outputCost.toString().split('.')[1] || '').length)) %><br/>
+        Total: $<%- costDetails.totalCost.toFixed(2) %>
+      </td>
+      <% } %>
+      <% if (!limitIsSet) { %>
+      <td colspan="2" style="text-align: center">unlimited</td>
+      <% } else { %>
+      <td><%- prettyTokens(displayLimit) %></td>
+      <td><%- prettyTokens(remaining) %></td>
+      <% } %>
+      <% if (user.type === "temporary") { %>
+      <td>N/A</td>
+      <% } else { %>
+      <td><%- prettyTokens(refreshDisplayValue) %></td>
+      <% } %>
+      <% if (showRefreshEdit) { %>
+      <td class="actions">
+        <a
+          title="Edit"
+          id="edit-refresh"
+          href="#"
+          data-field="tokenRefresh_<%= key %>"
+          data-token="<%= user.token %>"
+          data-modelFamily="<%= key %>"
+          >✏️</a
+        >
+      </td>
+      <% } %>
+    </tr>
+    <% }) %>
+  </tbody>
+</table>
+<script>
+  function filterQuotaTable(input, tableId) {
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById("quota-table-" + tableId);
+    const rows = table.querySelectorAll("tbody tr");
+    for (const row of rows) {
+      const modelFamily = row.querySelector("th").textContent;
+      if (modelFamily.toLowerCase().includes(filter)) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
+    }
+  }
+</script>

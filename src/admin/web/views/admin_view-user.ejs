@@ -1,0 +1,230 @@
+<%- include("partials/shared_header", { title: "View User - OAI Reverse Proxy Admin" }) %>
+<h1>View User</h1>
+
+<table class="striped">
+  <thead>
+    <tr>
+      <th scope="col">Key</th>
+      <th scope="col" colspan="2">Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th scope="row">Token</th>
+      <td colspan="2"><%- user.token %></td>
+    </tr>
+    <tr>
+      <th scope="row">Nickname</th>
+      <td><%- user.nickname ?? "none" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-nickname" href="#" data-field="nickname" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Type</th>
+      <td><%- user.type %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-type" href="#" data-field="type" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Prompts</th>
+      <td colspan="2"><%- user.promptCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Created At</th>
+      <td colspan="2"><%- user.createdAt %></td>
+    </tr>
+    <tr>
+      <th scope="row">Last Used At</th>
+      <td colspan="2"><%- user.lastUsedAt || "never" %></td>
+    </tr>
+    <tr>
+      <th scope="row">Disabled At</th>
+      <td><%- user.disabledAt %></td>
+      <td class="actions">
+        <% if (user.disabledAt) { %>
+        <a title="Unban" href="#" class="unban" data-token="<%= user.token %>">🔄️</a>
+        <% } else { %>
+        <a title="Ban" href="#" class="ban" data-token="<%= user.token %>">🚫</a>
+        <% } %>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Disabled Reason</th>
+      <td><%- user.disabledReason %></td>
+      <% if (user.disabledAt) { %>
+      <td class="actions">
+        <a title="Edit" id="edit-disabledReason" href="#" data-field="disabledReason" data-token="<%= user.token %>"
+          >✏️</a
+        >
+      </td>
+      <% } %>
+    </tr>
+    <tr>
+      <th scope="row">Suspended</th>
+      <td><%= (user.meta && typeof user.meta.suspendUntil === 'number' && user.meta.suspendUntil > Date.now()) ? 'Yes' : 'No' %></td>
+      <td class="actions">
+        <% const isSusp = (user.meta && typeof user.meta.suspendUntil === 'number' && user.meta.suspendUntil > Date.now()); %>
+        <% if (!isSusp) { %>
+        <form action="/admin/manage/suspend-user/<%- user.token %>" method="POST" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
+          <input type="hidden" name="reason" value="Anti-Abuse: Temporary suspension (manual 14h)" />
+          <button type="submit" class="btn">Suspend 14h</button>
+        </form>
+        <% } %>
+      </td>
+    </tr>
+    <% if (user.meta && user.meta.suspendUntil) { %>
+    <tr>
+      <th scope="row">Suspended Until</th>
+      <td><%- new Date(user.meta.suspendUntil).toISOString() %></td>
+      <td class="actions">
+        <form action="/admin/manage/unsuspend-user/<%- user.token %>" method="POST" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
+          <button type="submit" class="btn">Unsuspend</button>
+        </form>
+      </td>
+    </tr>
+    <% } %>
+    <% if (user.meta && user.meta.suspendReason) { %>
+    <tr>
+      <th scope="row">Suspension Reason</th>
+      <td colspan="2"><%- user.meta.suspendReason %></td>
+    </tr>
+    <% } %>
+    <tr>
+      <th scope="row">IP Address Limit</th>
+      <td><%- (user.maxIps ?? maxIps) || "Unlimited" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-maxIps" href="#" data-field="maxIps" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">IPs</th>
+      <td colspan="2"><%- include("partials/shared_user_ip_list", { user, shouldRedact: false }) %></td>
+    </tr>
+    <tr>
+      <th scope="row">
+        Admin Note <span title="Unlike nickname, this is not visible to or editable by the user">🔒</span>
+      </th>
+      <td><%- user.adminNote ?? "none" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-adminNote" href="#" data-field="adminNote" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <% if (user.type === "temporary") { %>
+    <tr>
+      <th scope="row">Expires At</th>
+      <td colspan="2"><%- user.expiresAt %></td>
+    </tr>
+    <% } %>
+    <% if (user.meta) { %>
+    <tr>
+      <th scope="row">14h Violations</th>
+      <td colspan="2"><%- (user.meta.fourteenHourViolations ?? user.meta.twelveHourViolations ?? 0) %></td>
+    </tr>
+    <tr>
+      <th scope="row">IP/Subnet Violations</th>
+      <td colspan="2"><%- (user.meta.ipSubnetViolations ?? 0) %></td>
+    </tr>
+    <tr>
+      <th scope="row">Meta</th>
+      <td colspan="2"><%- JSON.stringify(user.meta) %></td>
+    </tr>
+    <% } %>
+  </tbody>
+</table>
+
+<% if (typeof recentActivity !== 'undefined' && recentActivity) { %>
+<h3>Recent Activity Snapshot</h3>
+<table class="striped">
+  <tbody>
+    <tr>
+      <th scope="row">Last 20m: Unique IPs</th>
+      <td colspan="2"><%= recentActivity.last30MinIpsCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Last 20m: Unique Subnets</th>
+      <td colspan="2"><%= recentActivity.last30MinSubnetsCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Continuous Activity (14h)</th>
+      <td colspan="2"><%= recentActivity.continuousActivity12h ? 'Yes' : 'No' %></td>
+    </tr>
+    <tr>
+      <th scope="row">Last 20m: IPs (sample)</th>
+      <td colspan="2"><code><%= recentActivity.last30MinIps.join(', ') %></code></td>
+    </tr>
+  </tbody>
+</table>
+<% } %>
+
+<form style="display: none" id="current-values">
+  <input type="hidden" name="token" value="<%- user.token %>" />
+  <% ["nickname", "type", "disabledAt", "disabledReason", "maxIps", "adminNote"].forEach(function (key) { %>
+  <input type="hidden" name="<%- key %>" value="<%- user[key] %>" />
+  <% }); %>
+  <!-- tokenRefresh_ keys are dynamically generated -->
+  <% Object.entries(quota).forEach(([family]) => { %>
+  <input type="hidden" name="tokenRefresh_<%- family %>" value="<%- user.tokenRefresh[family] || quota[family] %>" />
+  <% }); %>
+</form>
+
+<h3>Quota Information</h3>
+<% if (quotasEnabled) { %>
+<form action="/admin/manage/refresh-user-quota" method="POST">
+  <input type="hidden" name="token" value="<%- user.token %>" />
+  <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
+  <button type="submit" class="btn btn-primary">Refresh Quotas for User</button>
+</form>
+<% } %>
+<%- include("partials/shared_quota-info", { quota, user, showRefreshEdit: true }) %>
+
+<p><a href="/admin/manage/list-users">Back to User List</a></p>
+
+<script>
+  document.querySelectorAll("td.actions a[data-field]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      const token = a.dataset.token;
+      const field = a.dataset.field;
+      const existingValue = document.querySelector(`#current-values input[name=${field}]`).value;
+
+      let value = prompt(`Enter new value for '${field}':`, existingValue);
+      if (value !== null) {
+        if (value === "") {
+          value = null;
+        }
+
+        const payload = { _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content") };
+        if (field.startsWith("tokenRefresh_")) {
+          const family = field.slice("tokenRefresh_".length);
+          payload.tokenRefresh = { [family]: Number(value) };
+        } else {
+          payload[field] = value;
+        }
+
+        fetch(`/admin/manage/edit-user/${token}`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+        })
+          .then((res) => Promise.all([res.ok, res.json()]))
+          .then(([ok, json]) => {
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams();
+            if (!ok) {
+              alert(`Failed to edit user: ${json.message}`);
+            }
+            url.search = params.toString();
+            window.location.assign(url);
+          });
+      }
+    });
+  });
+</script>
+
+<%- include("partials/admin-ban-xhr-script") %>
+<%- include("partials/admin-footer") %>

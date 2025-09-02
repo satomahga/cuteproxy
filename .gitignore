@@ -1,0 +1,11 @@
+.aider*
+.env*
+!.env.vault
+.venv
+.vscode
+.idea
+build
+greeting.md
+node_modules
+.windsurfrules
+http-client.private.env.json

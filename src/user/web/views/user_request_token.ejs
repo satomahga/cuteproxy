@@ -1,0 +1,152 @@
+<%- include("partials/shared_header", { title: "Request User Token" }) %>
+
+<style>
+  #request-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0;
+    width: 100%;
+    gap: 10px;
+  }
+
+  #request-container button {
+    flex: 1;
+    width: 100%;
+    max-width: 300px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  #refresh-token-input {
+    width: 100%;
+  }
+</style>
+
+<h1>Request User Token</h1>
+<p>You can request a temporary user token to use this proxy. The token will be valid for <%= tokenLifetime %> hours.</p>
+<% if (keyRequired) { %>
+<div>
+  <p>You need to supply the proxy password to request or refresh a token.</p>
+  <div>
+    <label for="proxy-key">Proxy password:</label>
+    <input type="password" id="proxy-key" />
+  </div>
+</div>
+<% } %>
+<div id="request-container">
+  <button id="request-token" onclick="requestChallenge('new')">Get a new token</button>
+  <button id="refresh-token-toggle" onclick="switchSection('refresh')">Refresh an old token</button>
+  <h6 id="existing-token-value" style="display: none">Existing token:</h6>
+</div>
+<div id="back-to-menu" style="display: none">
+  <a href="#" onclick="switchSection('root')">« Back</a>
+</div>
+<div id="refresh-container" style="display: none">
+  <div id="existing-token">
+    <p>
+      If you have an existing or expired token, enter it here to try to refresh it by completing a shorter verification.
+    </p>
+    <div>
+      <label for="refresh-token-input">Existing token:</label>
+      <input type="text" id="refresh-token-input" />
+      <button id="refresh-token" onclick="requestChallenge('refresh')">Refresh</button>
+    </div>
+  </div>
+</div>
+<%- include("partials/user_challenge_widget") %>
+<script>
+  function switchSection(sectionId) {
+    const backToMenu = document.getElementById("back-to-menu");
+    const captchaSection = document.getElementById("captcha-container");
+    const requestSection = document.getElementById("request-container");
+    const refreshSection = document.getElementById("refresh-container");
+    [backToMenu, captchaSection, requestSection, refreshSection].forEach((element) => (element.style.display = "none"));
+    switch (sectionId) {
+      case "root":
+        requestSection.style.display = "flex";
+        maybeLoadExistingToken();
+        break;
+      case "captcha":
+        captchaSection.style.display = "block";
+        backToMenu.style.display = "block";
+        break;
+      case "refresh":
+        refreshSection.style.display = "block";
+        backToMenu.style.display = "block";
+        document.getElementById("refresh-token-input").focus();
+        break;
+    }
+  }
+
+  function requestChallenge(action) {
+    const savedToken = localStorage.getItem("captcha-temp-token");
+    const refreshInput = document.getElementById("refresh-token-input").value;
+    if (savedToken && action === "new") {
+      const confirmation = confirm(
+        "It looks like you might already have an existing token. Are you sure you want to request a new one?"
+      );
+      if (!confirmation) {
+        return;
+      }
+      localStorage.removeItem("captcha-temp-token");
+      document.getElementById("existing-token").style.display = "none";
+      document.getElementById("refresh-token").disabled = true;
+    } else if (!refreshInput?.length && action === "refresh") {
+      alert("You need to provide a token to refresh.");
+      return;
+    }
+
+    const refreshToken = action === "refresh" ? refreshInput : undefined;
+    const keyInput = document.getElementById("proxy-key");
+    const proxyKey = (keyInput && keyInput.value) || undefined;
+    if (!proxyKey?.length) {
+      localStorage.removeItem("captcha-proxy-key");
+    } else {
+      localStorage.setItem("captcha-proxy-key", proxyKey);
+    }
+
+    fetch("/user/captcha/challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, proxyKey, refreshToken, _csrf: "<%= csrfToken %>" }),
+    })
+      .then((response) => response.json())
+      .then(function (data) {
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        const { challenge, signature } = data;
+        loadNewChallenge(challenge, signature);
+        switchSection("captcha");
+      })
+      .catch(function (error) {
+        console.error(error);
+        alert(`Error getting verification - ${error.message}`);
+      });
+  }
+
+  function maybeLoadExistingToken() {
+    const existingToken = localStorage.getItem("captcha-temp-token");
+    if (existingToken) {
+      const data = JSON.parse(existingToken);
+      const { token, expires } = data;
+      const expiresDate = new Date(expires);
+      document.getElementById(
+        "existing-token-value"
+      ).textContent = `User token: ${token} (valid until ${expiresDate.toLocaleString()})`;
+      document.getElementById("existing-token-value").style.display = "block";
+      document.getElementById("refresh-token-input").value = token;
+    }
+
+    const proxyKey = localStorage.getItem("captcha-proxy-key");
+    if (proxyKey && document.getElementById("proxy-key")) {
+      document.getElementById("proxy-key").value = proxyKey;
+    }
+  }
+
+  switchSection("root");
+</script>
+
+<%- include("partials/user_footer") %>
