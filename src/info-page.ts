@@ -743,25 +743,20 @@ body::before {
     <div class="main-header">
       <h1 class="main-title">
         CUTE PROXY
-        <img src="https://files.catbox.moe/n9xw5g.png" alt="Cute Icon" class="title-icon">
+        <img src="https://storage.googleapis.com/ql-sato-mahga-main/icon.png" alt="Cute Icon" class="title-icon">
       </h1>
-      <p class="subtitle">твоя милая прокси ^.^</p>
+      <p class="subtitle">your cute proxy ^.^</p>
     </div>
 
     <!-- Uptime Section -->
     <div class="uptime-section">
-      <img src="https://files.catbox.moe/frc1hf.png" alt="Left Unicorn" class="uptime-unicorn-left">
+      <img src="https://storage.googleapis.com/ql-sato-mahga-main/left.png" alt="Left Unicorn" class="uptime-unicorn-left">
       <div class="uptime-content">
         <h2 class="uptime-title">UPTIME</h2>
         <div class="uptime-counter" id="uptime">00:00:00</div>
       </div>
-      <img src="https://files.catbox.moe/w1dmqj.png" alt="Right Unicorn" class="uptime-unicorn-right">
+      <img src="https://storage.googleapis.com/ql-sato-mahga-main/right.png" alt="Right Unicorn" class="uptime-unicorn-right">
     </div>
-
-    <!-- Header Telegram Link -->
-    <a href="https://t.me/cuteproxy" class="header-telegram-link" target="_blank">
-      💬 Наш телеграм <3
-    </a>
 
     <!-- Self-service links -->
     ${getSelfServiceLinks()}
@@ -785,11 +780,6 @@ body::before {
       <div class="token-limits">
         ${buildTokenLimits(info)}
       </div>
-    </div>
-
-    <!-- Footer with large image -->
-    <div class="footer">
-      <img src="https://files.catbox.moe/9q6nlj.png" alt="Cute Proxy Mascot" class="footer-image">
     </div>
   </div>
 
@@ -1037,9 +1027,9 @@ function buildInfoPageHeader(info: ServiceInfo) {
 
 function getSelfServiceLinks() {
   if (config.gatekeeper !== "user_token") return "";
-  const links = [["Проверить свой токен", "/user/lookup"]];
+  const links = [["Check your token", "/user/lookup"]];
   if (config.captchaMode !== "none") {
-    links.unshift(["Запросить токен", "/user/captcha"]);
+    links.unshift(["Request token", "/user/captcha"]);
   }
   return `<div class="self-service-links">${links
     .map(([t, l]) => `<a href="${l}">${t}</a>`)
