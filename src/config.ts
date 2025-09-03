@@ -15,6 +15,12 @@ export const DATA_DIR = path.join(__dirname, "..", "data");
 export const USER_ASSETS_DIR = path.join(DATA_DIR, "user-files");
 
 type Config = {
+  /** Whether to enable the anti-abuse check for IP spike detection. */
+  enableAntiAbuseIpSpike: boolean;
+  /** Whether to enable the anti-abuse check for 14h continuous activity. */
+  enableAntiAbuse14hContinuous: boolean;
+  /** Whether to enable the anti-abuse check for 24h continuous usage with <=2h gaps. */
+  enableAntiAbuse24hFlex: boolean;
   /** The port the proxy server will listen on. */
   port: number;
   /** The network interface the proxy server will listen on. */
@@ -497,6 +503,9 @@ type Config = {
 // To change configs, create a file called .env in the root directory.
 // See .env.example for an example.
 export const config: Config = {
+  enableAntiAbuseIpSpike: getEnvWithDefault("ENABLE_ANTI_ABUSE_IP_SPIKE", true),
+  enableAntiAbuse14hContinuous: getEnvWithDefault("ENABLE_ANTI_ABUSE_14H_CONTINUOUS", true),
+  enableAntiAbuse24hFlex: getEnvWithDefault("ENABLE_ANTI_ABUSE_24H_FLEX", true),
   port: getEnvWithDefault("PORT", 7860),
   bindAddress: getEnvWithDefault("BIND_ADDRESS", "0.0.0.0"),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),

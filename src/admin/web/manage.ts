@@ -5,7 +5,7 @@ import { z } from "zod";
 import { config } from "../../config";
 import { HttpError } from "../../shared/errors";
 import * as userStore from "../../shared/users/user-store";
-import { parseSort, sortBy, paginate } from "../../shared/utils";
+import { parseSort, sortBy } from "../../shared/utils";
 import { keyPool } from "../../shared/key-management";
 import { LLMService, MODEL_FAMILIES } from "../../shared/models";
 import { getTokenCostUsd, prettyTokens } from "../../shared/stats";
@@ -231,9 +231,6 @@ router.get("/view-user/:token", async (req, res) => {
 
 router.get("/list-users", (req, res) => {
   const sort = parseSort(req.query.sort) || ["sumTokens", "createdAt"];
-  const requestedPageSize =
-    Number(req.query.perPage) || Number(req.cookies.perPage) || 1000;
-  const perPage = Math.max(1, Math.min(1000, requestedPageSize));
   const users = userStore
     .getUsers()
     .map((user) => {
@@ -242,13 +239,9 @@ router.get("/list-users", (req, res) => {
     })
     .sort(sortBy(sort, false));
 
-  const page = Number(req.query.page) || 1;
-  const { items, ...pagination } = paginate(users, page, perPage);
-
   return res.render("admin_list-users", {
     sort: sort.join(","),
-    users: items,
-    ...pagination,
+    users,
   });
 });
 
@@ -747,7 +740,7 @@ router.post("/generate-stats", (req, res) => {
   const header = `!!!Note ${users.length} users | ${strTotalPrompts} | ${strTotalIps} | ${strTotalTokens} | ${strTotalCost}`;
   const time = `\n-> *(as of ${new Date().toISOString()})* <-`;
 
-  let table = [];
+  let table = [] as string[];
   table.push(lines.join("\n"));
 
   if (valid.data.tableType === "markdown") {
