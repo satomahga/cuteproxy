@@ -48,18 +48,6 @@
         </tr>
         <% }); %>
     </table>
-    <ul class="pagination">
-      <% if (page > 1) { %>
-      <li><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= page - 1 %>">&laquo;</a></li>
-      <% } %> <% for (var i = 1; i <= pageCount; i++) { %>
-      <li <% if (i === page) { %>class="active"<% } %>><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= i %>"><%= i %></a></li>
-      <% } %> <% if (page < pageCount) { %>
-      <li><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= page + 1 %>">&raquo;</a></li>
-      <% } %>
-    </ul>
-    
-    <p>Showing <%= page * pageSize - pageSize + 1 %> to <%= users.length + page * pageSize - pageSize %> of <%= totalCount %> users.</p>
-    <%- include("partials/shared_pagination") %>
     <% } %>
     
 <script>
