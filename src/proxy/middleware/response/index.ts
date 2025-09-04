@@ -12,6 +12,7 @@ import {
   incrementPromptCount,
   incrementTokenCount,
   incrementSubscriptionPromptUsage,
+  ensureSubscriptionPromptCounters,
 } from "../../../shared/users/user-store";
 import { assertNever } from "../../../shared/utils";
 import { reenqueueRequest, trackWaitTime } from "../../queue";
@@ -922,6 +923,7 @@ const incrementUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
       if (req.user.type === "subscription") {
         const family = req.modelFamily!;
         const service = MODEL_FAMILY_SERVICE[family];
+        ensureSubscriptionPromptCounters(req.user.token);
         incrementSubscriptionPromptUsage(req.user.token, service, 1);
       }
       if (req.user.type === "subscription") {
