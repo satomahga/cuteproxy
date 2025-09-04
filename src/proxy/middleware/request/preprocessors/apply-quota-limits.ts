@@ -1,4 +1,4 @@
-import { hasAvailableSubscriptionPrompt } from "../../../../shared/users/user-store";
+import { hasAvailableSubscriptionPrompt, ensureSubscriptionPromptCounters } from "../../../../shared/users/user-store";
 import { RequestPreprocessor } from "../index";
 import { getModelFamilyForRequest, MODEL_FAMILY_SERVICE } from "../../../../shared/models";
 
@@ -19,6 +19,9 @@ export const applyQuotaLimits: RequestPreprocessor = (req) => {
 
   // Enforce per-service daily prompt limit for subscription users
   if (user.type === "subscription") {
+    // Ensure daily counters are current
+    ensureSubscriptionPromptCounters(user.token);
+
     const family = getModelFamilyForRequest(req);
     const service = MODEL_FAMILY_SERVICE[family];
     const ok = hasAvailableSubscriptionPrompt({ userToken: user.token, service });
