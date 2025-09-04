@@ -843,7 +843,6 @@ function maybeResetPromptCounts(user: User) {
   if (!resetAt || resetAt <= now) {
     meta.promptCounts = {};
     meta.promptCountsResetAt = getNextMidnight(3); // (x) время в сторону от UTC, значение между -inf до inf
-    meta.promptCountsResetNote = "UpdatesAt";
     usersToFlush.add(user.token);
   }
 }
