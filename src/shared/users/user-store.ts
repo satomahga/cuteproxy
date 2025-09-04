@@ -826,3 +826,29 @@ export function incrementSubscriptionPromptUsage(userToken: string, service: str
   meta.promptCounts[service] = (meta.promptCounts[service] || 0) + count;
   usersToFlush.add(userToken);
 }
+
+function getNextMidnight(offsetHours: number, now = Date.now()): number {
+  const offsetMs = offsetHours * 60 * 60 * 1000;
+  const d = new Date(now + offsetMs);
+  d.setUTCHours(0, 0, 0, 0);
+  const next = d.getTime() + 24 * 60 * 60 * 1000;
+  return next - offsetMs;
+}
+
+function maybeResetPromptCounts(user: User) {
+  user.meta = user.meta || {};
+  const meta = user.meta as any;
+  const now = Date.now();
+  const resetAt = (meta.promptCountsResetAt as number | undefined) ?? 0;
+  if (!resetAt || resetAt <= now) {
+    meta.promptCounts = {};
+    meta.promptCountsResetAt = getNextMidnight(3); // (x) время в сторону от UTC, значение между -inf до inf
+    usersToFlush.add(user.token);
+  }
+}
+
+export function ensureSubscriptionPromptCounters(userToken: string) {
+  const user = users.get(userToken);
+  if (!user || user.type !== "subscription") return;
+  maybeResetPromptCounts(user);
+}
