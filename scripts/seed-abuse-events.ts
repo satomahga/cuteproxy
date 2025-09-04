@@ -5,7 +5,15 @@ import { migrateDatabase } from "../src/shared/database";
 import { config } from "../src/config";
 
 function usage() {
-  console.log(`Usage:\n  ts-node scripts/seed-abuse-events.ts <token> <mode>\n\nModes:\n  continuous14h  -> one event per hour for the last 14 hours (triggers 14h temporary suspension rule)\n  flex24h        -> chain of events ≤ 2h apart spanning 24h (triggers 24h continuous rule)\n  ip-spike       -> multiple events within the last 10 minutes from 4+ unique IPs (triggers IP spike rule)\n  bulk149        -> seeds exactly 149 events spaced ~1s apart (utility for testing request counters)\n`);
+  console.log(`Usage:
+      ts-node scripts/seed-abuse-events.ts <token> <mode>
+
+Modes:
+  continuous14h  -> one event per hour for the last 14 hours (triggers 14h temporary suspension rule)
+  flex24h        -> chain of events ≤ 2h apart spanning 24h (triggers 24h continuous rule)
+  ip-spike       -> multiple events within the last 10 minutes from 4+ unique IPs (triggers IP spike rule)
+  bulk149        -> seeds exactly 149 events spaced ~1s apart (utility for testing request counters)
+`);
 }
 
 function ensureDir(filePath: string) {
@@ -202,7 +210,7 @@ function requestJson(method: string, urlStr: string, headers: Record<string, str
       path: url.pathname + (url.search || ''),
       headers: {
         'Content-Type': 'application/json',
-        ...headers,
+        ...headers,                        
       },
     };
     const req = (isHttps ? https : http).request(opts, (res) => {
@@ -236,7 +244,7 @@ async function adminUpdatePromptAndMeta(adminUrl: string, adminKey: string, toke
     await requestJson('PUT', `${base}/admin/users/${encodeURIComponent(token)}`, headers, { promptCount: newCount, meta: newMeta });
     console.log(`Admin API: set promptCount=${newCount}, meta.promptCounts['${service}']=${newServiceCount} for ${token}`);
     return true;
-  } catch (e) {
+  } catch (e) { 
     console.warn(`Admin API update failed: ${(e as any)?.message || e}`);
     return false;
   }
