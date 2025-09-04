@@ -827,10 +827,12 @@ export function incrementSubscriptionPromptUsage(userToken: string, service: str
   usersToFlush.add(userToken);
 }
 
-function getNextUtcMidnight(now = Date.now()): number {
-  const d = new Date(now);
+function getNextMidnight(offsetHours: number, now = Date.now()): number {
+  const offsetMs = offsetHours * 60 * 60 * 1000;
+  const d = new Date(now + offsetMs);
   d.setUTCHours(0, 0, 0, 0);
-  return d.getTime() + 24 * 60 * 60 * 1000;
+  const next = d.getTime() + 24 * 60 * 60 * 1000;
+  return next - offsetMs;
 }
 
 function maybeResetPromptCounts(user: User) {
@@ -840,7 +842,7 @@ function maybeResetPromptCounts(user: User) {
   const resetAt = (meta.promptCountsResetAt as number | undefined) ?? 0;
   if (!resetAt || resetAt <= now) {
     meta.promptCounts = {};
-    meta.promptCountsResetAt = getNextUtcMidnight(now);
+    meta.promptCountsResetAt = getNextMidnight(3); // (x) время в сторону от UTC, значение между -inf до inf
     meta.promptCountsResetNote = "UpdatesAt";
     usersToFlush.add(user.token);
   }
