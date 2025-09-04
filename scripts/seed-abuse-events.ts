@@ -210,7 +210,7 @@ function requestJson(method: string, urlStr: string, headers: Record<string, str
       path: url.pathname + (url.search || ''),
       headers: {
         'Content-Type': 'application/json',
-        ...headers,                        
+        ...headers,
       },
     };
     const req = (isHttps ? https : http).request(opts, (res) => {
@@ -244,7 +244,7 @@ async function adminUpdatePromptAndMeta(adminUrl: string, adminKey: string, toke
     await requestJson('PUT', `${base}/admin/users/${encodeURIComponent(token)}`, headers, { promptCount: newCount, meta: newMeta });
     console.log(`Admin API: set promptCount=${newCount}, meta.promptCounts['${service}']=${newServiceCount} for ${token}`);
     return true;
-  } catch (e) { 
+  } catch (e) {
     console.warn(`Admin API update failed: ${(e as any)?.message || e}`);
     return false;
   }
