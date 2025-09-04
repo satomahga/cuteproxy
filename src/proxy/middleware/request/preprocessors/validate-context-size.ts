@@ -3,6 +3,8 @@ import { z } from "zod";
 import { config } from "../../../../config";
 import { assertNever } from "../../../../shared/utils";
 import { RequestPreprocessor } from "../index";
+import { getContextCapForTier } from "../../../../shared/subscriptions/presets";
+
 
 const CLAUDE_MAX_CONTEXT = config.maxContextTokensAnthropic;
 const OPENAI_MAX_CONTEXT = config.maxContextTokensOpenAI;
@@ -52,6 +54,13 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   if (req.user?.type === "special") {
     req.log.debug("Special user, not enforcing proxy context limit.");
     proxyMax = Number.MAX_SAFE_INTEGER;
+  }
+
+  if (req.user?.type === "subscription") {
+    const cap = getContextCapForTier(req.user.tier as any, req.service as any);
+    if (typeof cap === "number" && cap > 0) {
+      proxyMax = Math.min(proxyMax, cap);
+    }
   }
 
   let modelMax: number;

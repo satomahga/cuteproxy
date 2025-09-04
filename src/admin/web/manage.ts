@@ -16,6 +16,7 @@ import {
   UserTokenCounts,
 } from "../../shared/users/schema";
 import { getLastNImages } from "../../shared/file-storage/image-history";
+import { TIER_PRESETS, SubscriptionTier } from "../../shared/subscriptions/presets";
 import { getDatabase, initializeDatabase } from "../../shared/database";
 import { blacklists, parseCidrs, whitelists } from "../../shared/cidr";
 import { invalidatePowChallenges } from "../../user/web/pow-captcha";
@@ -145,7 +146,25 @@ router.post("/create-user", (req, res) => {
       return { ...data, expiresAt, tokenLimits };
     });
 
-  const createSchema = body.type === "temporary" ? tempUser : base;
+  const subscriptionUser = base
+    .extend({
+      type: z.literal("subscription"),
+      tier: z.enum(["free", "proxy1", "proxy2", "proxy3"]),
+      subscriptionDurationDays: z
+        .preprocess(
+          (v) => (v === "" || v === null || typeof v === "undefined" ? undefined : v),
+          z.coerce.number().int().min(1).max(3650)
+        )
+        .optional(),
+    })
+    .transform((data: any) => {
+      const expiresAt = data.subscriptionDurationDays
+        ? Date.now() + data.subscriptionDurationDays * 24 * 60 * 60 * 1000
+        : undefined;
+      return { type: "subscription", tier: data.tier, expiresAt };
+    });
+
+  const createSchema = body.type === "temporary" ? tempUser : body.type === "subscription" ? subscriptionUser : base;
   const result = createSchema.safeParse(body);
   if (!result.success) {
     throw new HttpError(
@@ -226,7 +245,11 @@ router.get("/view-user/:token", async (req, res) => {
     recentActivity = null;
   }
 
-  res.render("admin_view-user", { user, recentActivity, maxIps: config.maxIpsPerUser, quota: config.tokenQuota, quotasEnabled: !!config.quotaRefreshPeriod });
+  const tier: SubscriptionTier | undefined = user.type === 'subscription' ? (user as any).tier as SubscriptionTier : undefined;
+  const promptLimitsByService: Partial<Record<LLMService, number>> = tier ? TIER_PRESETS[tier].dailyPrompts : ({} as Partial<Record<LLMService, number>>);
+  const promptUsageByService = (user.meta as any)?.promptCounts || {};
+
+  res.render("admin_view-user", { user, recentActivity, maxIps: config.maxIpsPerUser, quota: config.tokenQuota, quotasEnabled: !!config.quotaRefreshPeriod, promptLimitsByService, promptUsageByService });
 });
 
 router.get("/list-users", (req, res) => {

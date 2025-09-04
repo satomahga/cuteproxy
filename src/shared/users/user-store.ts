@@ -1,3 +1,4 @@
+import { applyTierPresetToUser, SubscriptionTier, TIER_PRESETS } from "../subscriptions/presets";
 /**
  * Basic user management. Handles creation and tracking of proxy users, personal
  * access tokens, and quota management. Supports in-memory and Firebase Realtime
@@ -25,7 +26,10 @@ import {
   getMistralAIModelFamily,
   getOpenAIModelFamily,
   MODEL_FAMILIES,
+  MODEL_FAMILY_SERVICE,
   ModelFamily,
+  LLMService,
+  LLM_SERVICES,
 } from "../models";
 import { assertNever } from "../utils";
 import { User, UserTokenCounts, UserUpdate } from "./schema";
@@ -113,6 +117,7 @@ export function createUser(createOptions?: {
   expiresAt?: number;
   tokenLimits?: User["tokenLimits"];
   tokenRefresh?: User["tokenRefresh"];
+  tier?: SubscriptionTier;
 }) {
   const token = uuid();
   const newUser: User = {
@@ -137,6 +142,16 @@ export function createUser(createOptions?: {
       type: "temporary",
       expiresAt: createOptions.expiresAt,
     });
+  } else if (createOptions?.type === "subscription") {
+    const defaultExpiryMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    Object.assign(newUser, {
+      type: "subscription",
+      tier: createOptions.tier,
+      expiresAt: createOptions.expiresAt ?? defaultExpiryMs,
+    });
+    if (createOptions.tier) {
+      applyTierPresetToUser(newUser, createOptions.tier);
+    }
   } else {
     Object.assign(newUser, { type: createOptions?.type ?? "normal" });
   }
@@ -188,9 +203,9 @@ export function upsertUser(user: UserUpdate) {
     const [key, value] = field as [keyof User, any]; // already validated by zod
     if (value === undefined || key === "token") continue;
     if (value === null) {
-      delete existing[key];
+      delete (existing as any)[key];
     } else {
-      updates[key] = value;
+      (updates as any)[key] = value;
     }
   }
 
@@ -205,23 +220,23 @@ export function upsertUser(user: UserUpdate) {
     updates.meta = mergedMeta;
   }
 
-  if (updates.tokenCounts) {
+  if ((updates as any).tokenCounts) {
     for (const family of MODEL_FAMILIES) {
-      updates.tokenCounts[family] ??= { input: 0, output: 0 };
+      (updates as any).tokenCounts[family] ??= { input: 0, output: 0 };
       // The property is now guaranteed to be an object, so the 'number' check is removed.
       // Defaulting individual fields if they are missing.
-      const counts = updates.tokenCounts[family]!; // Should not be undefined here
+      const counts = (updates as any).tokenCounts[family]!; // Should not be undefined here
       counts.input ??= 0;
       counts.output ??= 0;
       // legacy_total is optional and not defaulted here if missing
     }
   }
-  if (updates.tokenLimits) {
+  if ((updates as any).tokenLimits) {
     for (const family of MODEL_FAMILIES) {
-      updates.tokenLimits[family] ??= { input: 0, output: 0 };
+      (updates as any).tokenLimits[family] ??= { input: 0, output: 0 };
       // The property is now guaranteed to be an object, so the 'number' check is removed.
       // Defaulting individual fields if they are missing.
-      const limits = updates.tokenLimits[family]!; // Should not be undefined here
+      const limits = (updates as any).tokenLimits[family]!; // Should not be undefined here
       limits.input ??= 0;
       limits.output ??= 0;
       // legacy_total is optional and not defaulted here if missing
@@ -229,20 +244,25 @@ export function upsertUser(user: UserUpdate) {
   }
   // tokenRefresh is a special case where we want to merge the existing and
   // updated values for each model family, ignoring falsy values.
-  if (updates.tokenRefresh) {
+  if ((updates as any).tokenRefresh) {
     const merged = { ...existing.tokenRefresh } as UserTokenCounts;
     for (const family of MODEL_FAMILIES) {
-      const updateRefresh = updates.tokenRefresh[family];
+      const updateRefresh = (updates as any).tokenRefresh[family];
       const existingRefresh = existing.tokenRefresh[family];
       merged[family] = {
         input: (updateRefresh?.input || existingRefresh?.input) ?? 0,
         output: (updateRefresh?.output || existingRefresh?.output) ?? 0,
       };
     }
-    updates.tokenRefresh = merged;
+    (updates as any).tokenRefresh = merged;
   }
 
-  users.set(user.token, Object.assign(existing, updates));
+  const finalUser: User = Object.assign(existing, updates);
+  if (finalUser.type === "subscription" && finalUser.tier) {
+    applyTierPresetToUser(finalUser, finalUser.tier as SubscriptionTier);
+  }
+
+  users.set(user.token, finalUser);
   usersToFlush.add(user.token);
 
   // Immediately schedule a flush to the database if a persistent store is used.
@@ -273,6 +293,8 @@ export function incrementTokenCount(
   const user = users.get(token);
   if (!user) return;
   const modelFamily = getModelFamilyForQuotaUsage(model, api);
+
+  // Always track real token usage only on the specific model family
   const existingCounts = user.tokenCounts[modelFamily] ?? { input: 0, output: 0 };
   user.tokenCounts[modelFamily] = {
     input: (existingCounts.input ?? 0) + consumption.input,
@@ -381,7 +403,6 @@ export function refreshQuota(token: string) {
   if (!user) return;
   const { tokenQuota } = config;
   const { tokenCounts, tokenLimits, tokenRefresh } = user;
-
   for (const family of MODEL_FAMILIES) {
     const currentUsage = tokenCounts[family] ?? { input: 0, output: 0 };
     const userRefreshConfig = tokenRefresh[family] ?? { input: 0, output: 0 };
@@ -451,20 +472,26 @@ function cleanupExpiredTokens() {
   let disabled = 0;
   let deleted = 0;
   for (const user of users.values()) {
-    if (user.type !== "temporary") continue;
-    if (user.expiresAt && user.expiresAt < now && !user.disabledAt) {
-      disableUser(user.token, "Temporary token expired.");
-      if (!user.meta) {
-        user.meta = {};
+    if (user.type === "temporary") {
+      if (user.expiresAt && user.expiresAt < now && !user.disabledAt) {
+        disableUser(user.token, "Temporary token expired.");
+        if (!user.meta) {
+          user.meta = {};
+        }
+        user.meta.refreshable = config.captchaMode !== "none";
+        disabled++;
       }
-      user.meta.refreshable = config.captchaMode !== "none";
-      disabled++;
-    }
-    const purgeTimeout = config.powTokenPurgeHours * 60 * 60 * 1000;
-    if (user.disabledAt && user.disabledAt + purgeTimeout < now) {
-      users.delete(user.token);
-      usersToFlush.add(user.token);
-      deleted++;
+      const purgeTimeout = config.powTokenPurgeHours * 60 * 60 * 1000;
+      if (user.disabledAt && user.disabledAt + purgeTimeout < now) {
+        users.delete(user.token);
+        usersToFlush.add(user.token);
+        deleted++;
+      }
+    } else if (user.type === "subscription") {
+      if (user.expiresAt && user.expiresAt < now && !user.disabledAt) {
+        disableUser(user.token, "Subscription expired.");
+        disabled++;
+      }
     }
   }
   log.trace({ disabled, deleted }, "Expired tokens cleaned up.");
@@ -475,6 +502,7 @@ function refreshAllQuotas() {
   for (const user of users.values()) {
     if (user.type === "temporary") continue;
     refreshQuota(user.token);
+    usersToFlush.add(user.token);
     count++;
   }
   log.info(
@@ -531,10 +559,25 @@ async function initFirebase() {
       tokenRefresh: migrateTokenCountsProperty(rawUser.tokenRefresh, INITIAL_TOKENS),
       meta: rawUser.meta || {},
     };
+
+    let migrated = false;
+    if (migratedUser.type === 'normal') {
+      migratedUser.type = 'subscription' as any;
+      (migratedUser as any).tier = 'free';
+      migrated = true;
+    }
+    if ((migratedUser.type === 'subscription') && (migratedUser as any).tier) {
+      // Preserve existing tokenCounts for accurate stats; just apply new tier presets
+      applyTierPresetToUser(migratedUser, (migratedUser as any).tier as SubscriptionTier);
+      migrated = true;
+    }
+
     // Use the internal map directly to avoid re-triggering upsertUser's default creations
     users.set(token, migratedUser);
+    if (migrated) usersToFlush.add(token);
   }
-  usersToFlush.clear(); // Clear flush queue after initial load and migration
+  // Persist any migrations immediately
+  setImmediate(flushUsers);
   const numUsers = Object.keys(usersData).length;
   log.info({ users: numUsers }, "Loaded and migrated users from Firebase");
 }
@@ -544,7 +587,7 @@ async function flushUsers() {
   const db = admin.database(app);
   const usersRef = db.ref(USERS_REF);
   const updates: Record<string, User> = {};
-  const deletions = [];
+  const deletions: string[] = [];
 
   for (const token of usersToFlush) {
     const user = users.get(token);
@@ -584,6 +627,7 @@ async function loadUsersFromSQLite() { // Added
       ip: row.ip ? JSON.parse(row.ip) : [],
       nickname: row.nickname,
       type: row.type,
+      tier: row.tier,
       promptCount: row.promptCount,
       tokenCounts: migrateTokenCountsProperty(rawTokenCounts, INITIAL_TOKENS),
       tokenLimits: migrateTokenCountsProperty(rawTokenLimits, config.tokenQuota),
@@ -597,9 +641,28 @@ async function loadUsersFromSQLite() { // Added
       adminNote: row.adminNote,
       meta: row.meta ? JSON.parse(row.meta) : {},
     };
+
+    let migrated = false;
+    // Convert normal users to subscription free during migration
+    if (user.type === 'normal') {
+      user.type = 'subscription' as any;
+      (user as any).tier = 'free';
+      // do not set expiresAt for free tier unless desired
+      migrated = true;
+    }
+
+    // Migration: reset quotas for subscription users to new tier presets and zero out usage
+    if ((user.type === 'subscription') && (user as any).tier) {
+      // Preserve existing tokenCounts for accurate historical stats
+      applyTierPresetToUser(user, (user as any).tier as SubscriptionTier);
+      migrated = true;
+    }
+
     users.set(user.token, user);
+    if (migrated) usersToFlush.add(user.token);
   }
-  usersToFlush.clear(); // Clear flush queue after initial load
+  // Persist migrated users immediately
+  await flushUsersToSQLite();
   log.info({ users: users.size }, "Loaded users from SQLite.");
 }
 
@@ -618,11 +681,11 @@ async function flushUsersToSQLite() { // Added
   const db = getDB();
   const insertStmt = db.prepare(`
     INSERT OR REPLACE INTO users (
-      token, ip, nickname, type, promptCount, tokenCounts, tokenLimits,
+      token, ip, nickname, type, tier, promptCount, tokenCounts, tokenLimits,
       tokenRefresh, createdAt, lastUsedAt, disabledAt, disabledReason,
       expiresAt, maxIps, adminNote, meta
     ) VALUES (
-      @token, @ip, @nickname, @type, @promptCount, @tokenCounts, @tokenLimits,
+      @token, @ip, @nickname, @type, @tier, @promptCount, @tokenCounts, @tokenLimits,
       @tokenRefresh, @createdAt, @lastUsedAt, @disabledAt, @disabledReason,
       @expiresAt, @maxIps, @adminNote, @meta
     )
@@ -641,6 +704,7 @@ async function flushUsersToSQLite() { // Added
           ip: JSON.stringify(user.ip || []),
           nickname: user.nickname ?? null,
           type: user.type,
+          tier: (user as any).tier ?? null,
           promptCount: user.promptCount,
           tokenCounts: JSON.stringify(user.tokenCounts || INITIAL_TOKENS),
           tokenLimits: JSON.stringify(user.tokenLimits || migrateTokenCountsProperty(null, config.tokenQuota)),
@@ -732,4 +796,33 @@ function getRefreshCrontab() {
     default:
       return config.quotaRefreshPeriod ?? "0 0 * * *";
   }
+}
+
+// Subscription prompt budget helpers (service-level prompt counting)
+const toLLMService = (s: string): LLMService | undefined =>
+  (LLM_SERVICES as readonly string[]).includes(s) ? (s as LLMService) : undefined;
+
+export function hasAvailableSubscriptionPrompt(params: { userToken: string; service: string; requested?: number }) {
+  const { userToken, service } = params;
+  const requested = params.requested ?? 1;
+  const user = users.get(userToken);
+  if (!user) return false;
+  if (user.type !== "subscription") return true;
+  const tier = (user as any).tier as SubscriptionTier | undefined;
+  if (!tier) return true;
+  const svc = toLLMService(service);
+  const limit = svc ? (TIER_PRESETS[tier].dailyPrompts[svc] || 0) : 0;
+  if (limit === 0) return true; // unlimited for this service
+  const used = ((user.meta as any)?.promptCounts?.[service] as number) || 0;
+  return used + requested <= limit;
+}
+
+export function incrementSubscriptionPromptUsage(userToken: string, service: string, count = 1) {
+  const user = users.get(userToken);
+  if (!user || user.type !== "subscription") return;
+  user.meta = user.meta || {};
+  const meta = user.meta as any;
+  meta.promptCounts = meta.promptCounts || {};
+  meta.promptCounts[service] = (meta.promptCounts[service] || 0) + count;
+  usersToFlush.add(userToken);
 }

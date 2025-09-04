@@ -10,6 +10,11 @@
     margin-bottom: -0.4em;
   }
 
+  #subscriptionOptions {
+    margin-top: 1em;
+    max-width: 30em;
+  }
+
   input[type="number"] {
     max-width: 10em;
   }
@@ -36,17 +41,20 @@
   <li><strong>Normal</strong> - Standard users.
   <li><strong>Special</strong> - Exempt from token quotas and <code>MAX_IPS_PER_USER</code> enforcement.</li>
   <li><strong>Temporary</strong> - Disabled after a specified duration. Quotas never refresh.</li>
+  <li><strong>Subscription</strong> - Tiered access with per-tier limits.</li>
 </ul>
   
 <form action="/admin/manage/create-user" method="post">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
   <label for="type">Type</label>
-  <select name="type">
+  <select name="type" id="userType">
     <option value="normal">Normal</option>
     <option value="special">Special</option>
     <option value="temporary">Temporary</option>
+    <option value="subscription">Subscription</option>
   </select>
   <input type="submit" value="Create" />
+
   <fieldset id="temporaryUserOptions" style="display: none">
     <legend>Temporary User Options</legend>
     <div class="temporary-user-fieldset">
@@ -75,6 +83,21 @@
       <% }) %>
     </div>
   </fieldset>
+
+  <fieldset id="subscriptionOptions" style="display: none">
+    <legend>Subscription Options</legend>
+    <div class="temporary-user-fieldset">
+      <label for="subscriptionTier" class="full-width">Tier</label>
+      <select name="tier" id="subscriptionTier" class="full-width">
+        <option value="proxy1">proxy1</option>
+        <option value="proxy2">proxy2</option>
+        <option value="proxy3">proxy3</option>
+      </select>
+
+      <label for="subscriptionDurationDays" class="full-width">Expire after (days, optional)</label>
+      <input type="number" name="subscriptionDurationDays" id="subscriptionDurationDays" placeholder="30" class="full-width" />
+    </div>
+  </fieldset>
 </form>
 <% if (newToken) { %>
 <p>Just created <code><%= recentUsers[0].token %></code>.</p>
@@ -87,31 +110,39 @@
 </ul>
 
 <script>
-  const typeInput = document.querySelector("select[name=type]");
+  const typeInput = document.querySelector("#userType");
   const temporaryUserOptions = document.querySelector("#temporaryUserOptions");
+  const subscriptionOptions = document.querySelector("#subscriptionOptions");
+
+  function updateVisibility() {
+    const val = typeInput.value;
+    temporaryUserOptions.style.display = val === "temporary" ? "block" : "none";
+    subscriptionOptions.style.display = val === "subscription" ? "block" : "none";
+  }
+
   typeInput.addEventListener("change", function () {
     localStorage.setItem("admin__create-user__type", typeInput.value);
-    if (typeInput.value === "temporary") {
-      temporaryUserOptions.style.display = "block";
-    } else {
-      temporaryUserOptions.style.display = "none";
-    }
+    updateVisibility();
   });
 
   function loadDefaults() {
     const defaultType = localStorage.getItem("admin__create-user__type");
     if (defaultType) {
       typeInput.value = defaultType;
-      typeInput.dispatchEvent(new Event("change"));
+      updateVisibility();
+    } else {
+      updateVisibility();
     }
 
     const durationInput = document.querySelector("input[name=temporaryUserDuration]");
     const defaultDuration = localStorage.getItem("admin__create-user__duration");
-    durationInput.addEventListener("change", function () {
-      localStorage.setItem("admin__create-user__duration", durationInput.value);
-    });
-    if (defaultDuration) {
-      durationInput.value = defaultDuration;
+    if (durationInput) {
+      durationInput.addEventListener("change", function () {
+        localStorage.setItem("admin__create-user__duration", durationInput.value);
+      });
+      if (defaultDuration) {
+        durationInput.value = defaultDuration;
+      }
     }
 
     const tokenQuotaInputs = document.querySelectorAll("input[data-fieldtype=tokenquota]");

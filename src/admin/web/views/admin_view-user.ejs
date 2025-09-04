@@ -28,6 +28,13 @@
       </td>
     </tr>
     <tr>
+      <th scope="row">Tier</th>
+      <td><%- user.tier || "free" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-tier" href="#" data-field="tier" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <tr>
       <th scope="row">Prompts</th>
       <td colspan="2"><%- user.promptCount %></td>
     </tr>
@@ -113,7 +120,7 @@
         <a title="Edit" id="edit-adminNote" href="#" data-field="adminNote" data-token="<%= user.token %>">✏️</a>
       </td>
     </tr>
-    <% if (user.type === "temporary") { %>
+    <% if (user.expiresAt) { %>
     <tr>
       <th scope="row">Expires At</th>
       <td colspan="2"><%- user.expiresAt %></td>
@@ -179,7 +186,40 @@
   <button type="submit" class="btn btn-primary">Refresh Quotas for User</button>
 </form>
 <% } %>
-<%- include("partials/shared_quota-info", { quota, user, showRefreshEdit: true }) %>
+<%- include("partials/shared_quota-info", { quota, user, showRefreshEdit: true, quotaTableId: 'admin' }) %>
+
+<h3>Prompt Limits</h3>
+<% if (user.type === 'subscription') { %>
+<table class="striped">
+  <thead>
+    <tr>
+      <th scope="col">Service</th>
+      <th scope="col">Used</th>
+      <th scope="col">Limit</th>
+      <th scope="col">Remaining</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% const services = Object.keys(promptLimitsByService || {}); %>
+    <% if (services.length === 0) { %>
+      <tr><td colspan="4">No per-day prompt limit (unlimited)</td></tr>
+    <% } %>
+    <% services.forEach((svc) => { %>
+      <% const limit = Number(promptLimitsByService[svc] || 0); %>
+      <% const used = Number(promptUsageByService[svc] || 0); %>
+      <% const remaining = (limit === 0) ? '∞' : Math.max(0, limit - used); %>
+      <tr>
+        <th scope="row"><%- svc %></th>
+        <td><%- used %></td>
+        <td><%- limit === 0 ? '∞' : limit %></td>
+        <td><%- remaining %></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<% } else { %>
+<p>No subscription prompt limits for this user.</p>
+<% } %>
 
 <p><a href="/admin/manage/list-users">Back to User List</a></p>
 

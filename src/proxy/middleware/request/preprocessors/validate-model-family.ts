@@ -1,6 +1,7 @@
 import { config } from "../../../../config";
 import { ForbiddenError } from "../../../../shared/errors";
-import { getModelFamilyForRequest } from "../../../../shared/models";
+import { getModelFamilyForRequest, MODEL_FAMILY_SERVICE } from "../../../../shared/models";
+import { getAllowedServicesForTier } from "../../../../shared/subscriptions/presets";
 import { RequestPreprocessor } from "../index";
 
 /**
@@ -12,5 +13,16 @@ export const validateModelFamily: RequestPreprocessor = (req) => {
     throw new ForbiddenError(
       `Model family '${family}' is not enabled on this proxy`
     );
+  }
+
+  const userTier = req.user?.tier as any;
+  if (req.user?.type === "subscription" && userTier) {
+    const service = MODEL_FAMILY_SERVICE[family];
+    const allowed = getAllowedServicesForTier(userTier);
+    if (!allowed.includes(service)) {
+      throw new ForbiddenError(
+        `Model family '${family}' is not allowed for your subscription tier`
+      );
+    }
   }
 };
