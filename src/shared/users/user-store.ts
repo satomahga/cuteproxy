@@ -841,10 +841,7 @@ function maybeResetPromptCounts(user: User) {
   if (!resetAt || resetAt <= now) {
     meta.promptCounts = {};
     meta.promptCountsResetAt = getNextUtcMidnight(now);
-<<<<<<< HEAD
-=======
     meta.promptCountsResetNote = "UpdatesAt";
->>>>>>> c06ab01 (ensure prompt quota is updated daily)
     usersToFlush.add(user.token);
   }
 }
