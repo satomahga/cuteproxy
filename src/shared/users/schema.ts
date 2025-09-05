@@ -34,7 +34,8 @@ export const UserSchema = z
      * - `special`: Special role. Higher quotas and exempt from
      *   auto-ban/lockout.
      **/
-    type: z.enum(["normal", "special", "temporary"]),
+    type: z.enum(["normal", "special", "temporary", "subscription"]),
+    tier: z.enum(["free", "proxy1", "proxy2", "proxy3"]).optional(),
     /** Number of prompts the user has made. */
     promptCount: z.number(),
     /**

@@ -6,11 +6,13 @@ import { config } from "../../../config";
 import { HttpError, RetryableError } from "../../../shared/errors";
 import { keyPool, GoogleAIKey } from "../../../shared/key-management";
 import { logger } from "../../../logger";
-import { getOpenAIModelFamily, GoogleAIModelFamily } from "../../../shared/models";
+import { getOpenAIModelFamily, GoogleAIModelFamily, MODEL_FAMILY_SERVICE } from "../../../shared/models";
 import { countTokens } from "../../../shared/tokenization";
 import {
   incrementPromptCount,
   incrementTokenCount,
+  incrementSubscriptionPromptUsage,
+  ensureSubscriptionPromptCounters,
 } from "../../../shared/users/user-store";
 import { assertNever } from "../../../shared/utils";
 import { reenqueueRequest, trackWaitTime } from "../../queue";
@@ -918,7 +920,17 @@ const incrementUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
     keyPool.incrementUsage(req.key!, modelFamilyForKeyPool, { input: req.promptTokens!, output: req.outputTokens! });
     if (req.user) {
       incrementPromptCount(req.user.token);
-      incrementTokenCount(req.user.token, model, req.outboundApi, { input: req.promptTokens!, output: req.outputTokens! });
+      if (req.user.type === "subscription") {
+        const family = req.modelFamily!;
+        const service = MODEL_FAMILY_SERVICE[family];
+        ensureSubscriptionPromptCounters(req.user.token);
+        incrementSubscriptionPromptUsage(req.user.token, service, 1);
+      }
+      if (req.user.type === "subscription") {
+        incrementTokenCount(req.user.token, model, req.outboundApi, { input: req.promptTokens!, output: req.outputTokens! });
+      } else {
+        incrementTokenCount(req.user.token, model, req.outboundApi, { input: req.promptTokens!, output: req.outputTokens! });
+      }
     }
   }
 };

@@ -49,13 +49,21 @@ router.post("/", (req, res) => {
     })
     .required();
 
-  const schema = z.union([base, tempUser]);
+  const subscriptionUser = base
+    .extend({
+      type: z.literal("subscription"),
+      tier: z.enum(["free", "proxy1", "proxy2", "proxy3"]),
+      expiresAt: UserSchema.shape.expiresAt.optional(),
+    })
+    .required();
+
+  const schema = z.union([base, tempUser, subscriptionUser]);
   const result = schema.safeParse(body);
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
 
-  const token = userStore.createUser({ ...result.data });
+  const token = userStore.createUser({ ...result.data } as any);
   res.json({ token });
 });
 
